@@ -1,6 +1,6 @@
 const tableName = 'addresses';
 
-exports.up = function(knex) {
+exports.up = async function(knex) {
     await knex.schema.createTable(tableName, function (table) {
         table.increments('id');
         table.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE');

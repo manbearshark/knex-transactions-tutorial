@@ -11,8 +11,6 @@ const createUser = async function(user, knex) {
         last_name: user.last_name,
       };
 
-      console.log(`${JSON.stringify(userRecord)}`);
-
       const userIds = await(trx('users').insert(userRecord, 'id'));
 
       // TODO: Make the user generator create multiple emails with type for each user as well as phone numbers
@@ -45,6 +43,22 @@ const createUser = async function(user, knex) {
       
       userIdentifiers.forEach((ident) => ident.user_id = userIds[0]);
       const identifiers = await (trx('identifiers').insert(userIdentifiers).returning('id'));
+
+      let userAddresses = [];
+
+      user.addresses.forEach((address) => {
+        userAddresses.push({
+          user_id: userIds[0], 
+          address1: address.address1,
+          address2: address.address2,
+          country: address.country,
+          city: address.city,
+          state: address.state,
+          zipcode: address.zipcode,
+        });
+      });
+
+      const addressIds = await (trx('addresses').insert(userAddresses).returning('id'));
     });
 
   } catch(e) {
@@ -57,15 +71,11 @@ const createUser = async function(user, knex) {
 exports.seed = async function (knex) {
   // Deletes ALL existing entries
   await knex('users').del();
-
   // Load users JSON file
   let rawData = fs.readFileSync('./seeds/users.json');
   let users = JSON.parse(rawData);
-  //console.log(`${JSON.stringify(users)}`);
   // Insert each user record
-
   for(const i in users) {
-    console.log(`${JSON.stringify(users[i])}`);
     await createUser(users[i], knex); 
   }
 };
