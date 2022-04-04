@@ -12,21 +12,33 @@ app.get('/', (req, res) => {
   res.send('Hello World!');
 });
 
-app.get('/user', (req, res) => {
-    knex('users')
-        .select({
-            id: 'id',
-            firstName: 'firstName',
-            lastName: 'lastName',
-            userId: 'userId'
-        })
-        .then((users) => {
-            return res.json(users);
-        })
-        .catch((err) => {
-            console.error(err);
-            return res.json({ success: false, message: 'An error occurred, please try again later.' });
-        })
+app.get('/user', async (req, res, next) => {
+    try {
+        // Lookup by parameter type
+        const { userId, anonymousId } = req.query;
+
+        if(userId) {
+            const user = await knex.select(
+                'u.user_id',
+                'u.first_name',
+                'u.last_name'
+            ).from('users as u')
+            .where('u.user_id', '=', userId);
+            return res.json(user);
+        } else if(anonymousId) {
+            const user = await knex.select(
+                'u.user_id',
+                'u.first_name',
+                'u.last_name'
+            ).from('users as u')
+            .leftJoin('identifiers as i', 'i.user_id', 'u.id')
+            .where('i.identifier', '=', anonymousId);
+            return res.json(user);
+        }
+    } catch(error) {
+        console.error(error);
+        next(error);
+    }
 });
 
 app.post('/user', (req, res) => {
