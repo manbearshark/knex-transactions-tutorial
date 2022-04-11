@@ -1,10 +1,15 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const redis = require('redis');
 const app = express();
 const port = 3000;
 const knexConfig = require('./db/knexfile');
 //initialize knex
 const knex = require('knex')(knexConfig[process.env.NODE_ENV])
+
+const redisClient = redis.createClient({
+    url: 'redis://localhost:6379'
+});
 
 app.use(bodyParser.json());
 
@@ -41,36 +46,33 @@ app.get('/user', async (req, res, next) => {
     }
 });
 
-app.post('/user', (req, res) => {
+app.post('/event', (req, res) => {
+});
+
+app.post('/user', async (req, res, next) => {
     const firstName = req.body.firstName ? req.body.firstName : '';
     const lastName = req.body.lastName ? req.body.lastName : '';
-    const email = req.body.email ? req.body.email : '';
+    const emails = req.body.emails ? req.body.email : [];
     const userId = req.body.userId ? req.body.userId : '';
+    const identifiers = req.body.identifiers ? req.body.identifiers : [];
+    const properties = req.body.properties ? req.body.properties : [];
 
-    if (!firstName || !lastName) {
-        return res.json({ success: false, message: 'First and last name are required' });
+    if (!userId) {
+        return res.json({ success: false, message: 'userId is missing or null, this field is required.' });
     }
 
-    knex('users')
-        .insert({ firstName, lastName, email, userId })
-        .then((userId) => {
-            //get user by id
-            knex('users')
-                .select({
-                    userId: 'userId',
-                    firstName: 'firstName',
-                    lastName: 'lastName',
-                    email: 'email',
-                })
-                .where({ userId })
-                .then((user) => {
-                    return res.json(user[0]);
-                })
-        })
-        .catch((err) => {
-            console.error(err);
-            return res.json({ success: false, message: 'An error occurred, please try again later.' });
+    // Cache each identifier mapped to the userId for this user in redis
+    try {
+        await redisClient.connect();
+        identifiers.forEach((ident) => {
+            obj = identifiers[ident];
+            redisClient.set(`${obj.type}-${obj.platform}-${obj.identifier}`, userId)
         });
+        redisClient.quit();
+    } catch (error) {
+        console.error(error);
+        next(error);
+    }
 });
 
 app.listen(port, () => {
