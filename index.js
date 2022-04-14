@@ -20,7 +20,7 @@ app.get('/', (req, res) => {
 app.get('/user', async (req, res, next) => {
     try {
         // Lookup by parameter type
-        const { userId, anonymousId } = req.query;
+        const { userId, anonymousId, platform } = req.query;
 
         if(userId) {
             const user = await knex.select(
@@ -30,14 +30,15 @@ app.get('/user', async (req, res, next) => {
             ).from('users as u')
             .where('u.user_id', '=', userId);
             return res.json(user);
-        } else if(anonymousId) {
+        } else if(anonymousId && platform) {
             const user = await knex.select(
                 'u.user_id',
                 'u.first_name',
                 'u.last_name'
             ).from('users as u')
             .leftJoin('identifiers as i', 'i.user_id', 'u.id')
-            .where('i.identifier', '=', anonymousId);
+            .where('i.identifier', '=', anonymousId)
+            .andWhere('i.platform', '=', platform);
             return res.json(user);
         }
     } catch(error) {
@@ -65,10 +66,11 @@ app.post('/user', async (req, res, next) => {
     try {
         await redisClient.connect();
         identifiers.forEach((ident) => {
-            obj = identifiers[ident];
-            redisClient.set(`${obj.type}-${obj.platform}-${obj.identifier}`, userId)
+            redisClient.set(`${ident.type}:${ident.platform}:${ident.identifier}`, userId);
+            redisClient.set(`userId:${userId}`, )
         });
         redisClient.quit();
+        return res.json({"success": true});
     } catch (error) {
         console.error(error);
         next(error);
