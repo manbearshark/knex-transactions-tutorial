@@ -51,23 +51,67 @@ app.post('/event', (req, res) => {
 });
 
 app.post('/user', async (req, res, next) => {
-    const firstName = req.body.firstName ? req.body.firstName : '';
-    const lastName = req.body.lastName ? req.body.lastName : '';
-    const emails = req.body.emails ? req.body.email : [];
-    const userId = req.body.userId ? req.body.userId : '';
-    const identifiers = req.body.identifiers ? req.body.identifiers : [];
-    const properties = req.body.properties ? req.body.properties : [];
+    const reqFirstName = req.body.firstName ? req.body.firstName : '';
+    const reqLastName = req.body.lastName ? req.body.lastName : '';
+    const reqEmails = req.body.emails ? req.body.emails : [];
+    const reqUserId = req.body.userId ? req.body.userId : '';
+    const reqIdentifiers = req.body.identifiers ? req.body.identifiers : [];
+    const reqProperties = req.body.properties ? req.body.properties : [];
 
-    if (!userId) {
+    if (!reqUserId) {
         return res.json({ success: false, message: 'userId is missing or null, this field is required.' });
+    }
+
+    const trx = await knex.transaction();
+
+    // Upsert to the database, then cache the resulting user records to redis
+    try {
+        const userRecord = {
+            user_id: reqUserId,
+            first_name: reqFirstName,
+            last_name: reqLastName,
+        };
+
+        const userIds = await trx('users').insert(userRecord).onConflict('user_id').merge().returning('id');
+
+        if(reqEmails.length > 0) {
+            let userEmails = [];
+            reqEmails.forEach((email) => {
+                userEmails.push({
+                    user_id: userIds[0],
+                    email: email.email,
+                    type: email.type,
+                });
+            });
+            const emails = await trx('emails').insert(userEmails).onConflict('email').ignore();
+        }
+
+        if(reqIdentifiers.length > 0) {
+            let userIdentifiers = [];    
+            reqIdentifiers.forEach((ident) => {
+                userIdentifiers.push({
+                    identifier: ident.identifier,
+                    type: ident.type,
+                    platform: ident.platform,
+                });
+            });
+            await trx('identifiers').insert(userIdentifiers).onConflict('identifier').ignore();
+        }
+
+        await trx.commit();
+
+    } catch(e) {
+        console.error(e);
+        await trx.rollback();
+        next(e);
     }
 
     // Cache each identifier mapped to the userId for this user in redis
     try {
         await redisClient.connect();
-        identifiers.forEach((ident) => {
-            redisClient.set(`${ident.type}:${ident.platform}:${ident.identifier}`, userId);
-            redisClient.set(`userId:${userId}`, )
+        reqIdentifiers.forEach((ident) => {
+            redisClient.set(`${ident.type}:${ident.platform}:${ident.identifier}`, reqUserId);
+            redisClient.set(`userId:${reqUserId}`, )
         });
         redisClient.quit();
         return res.json({"success": true});

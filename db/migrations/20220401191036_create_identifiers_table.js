@@ -6,7 +6,8 @@ exports.up = async function(knex) {
         table.integer('user_id').references('id').inTable('users').onDelete('CASCADE');
         table.string('identifier', 255);
         table.string('type', 50);
-        table.string('platform', 50)
+        table.string('platform', 50);
+        table.unique(['identifier']);
         table.timestamps(false, true);
     });
 

@@ -7,6 +7,7 @@ exports.up = async function (knex) {
         table.string('first_name', 255).notNullable();
         table.string('last_name', 255).notNullable();
         table.timestamps(false, true);
+        table.unique(['user_id']);
     });
 
     await knex.raw(`
